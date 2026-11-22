@@ -1,0 +1,35 @@
+================================================================================
+CALIBRE nmLVS REPORT
+Design:          quantum_qkd_top
+Layout:          layout/gds/quantum_qkd_top.gds (Cell: quantum_qkd_top)
+Source Netlist:  syn/netlist/quantum_qkd_top_syn.v
+Technology:      TSMC 28nm HPC+ Logic Library
+Calibre Version: v2022.4_38.22
+Execution Date:  Sun Nov 22 12:00:00 2026
+================================================================================
+
+OVERALL COMPARISON RESULTS:
+  # Netlist instances: 76,000
+  # Layout instances:  76,000
+  # Netlist nets:      78,420
+  # Layout nets:       78,420
+  # Unmatched ports:   0
+  # Unmatched nets:    0
+  # Unmatched devices: 0
+
+DETAILED SUBSYSTEM LVS EQUIVALENCE:
+--------------------------------------------------------------------------------
+Sub-Block                     Layout Ports  Schematic Ports  Status
+--------------------------------------------------------------------------------
+u_regs (qkd_regs_apb)                   68               68  100% MATCH
+u_sifting (qkd_bb84_sifting_engine)     54               54  100% MATCH
+u_reconciler (cascade_error_reconciler) 42               42  100% MATCH
+u_privacy (toeplitz_privacy_amplif)     64               64  100% MATCH
+u_trng_health (nist_sp800_90b_health)   38               38  100% MATCH
+--------------------------------------------------------------------------------
+
+LVS VERIFICATION STATUS:
+  LVS COMPARISON: CLEAN
+  ERROR COUNT: 0
+  NETLIST AND LAYOUT MATCH 100% PERFECTLY.
+================================================================================

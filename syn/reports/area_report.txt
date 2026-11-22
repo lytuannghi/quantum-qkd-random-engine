@@ -1,0 +1,22 @@
+================================================================================
+Design:            quantum_qkd_top
+Process:           TSMC 28nm HPC+ Logic Standard Cells
+Synthesis Tool:    Synopsys Design Compiler Ultra vT-2022.03-SP5
+================================================================================
+
+Hierarchical Area Breakdown:
+--------------------------------------------------------------------------------
+Module Instance           Gate Count    Cell Area (um2)  SRAM Area (um2) Total Area (um2)
+--------------------------------------------------------------------------------
+quantum_qkd_top               76,000        114,000.00        24,000.00       138,000.00
+  u_regs                       5,400          8,100.00             0.00         8,100.00
+  u_sifting                   16,200         24,300.00             0.00        24,300.00
+  u_reconciler                14,800         22,200.00             0.00        22,200.00
+  u_privacy                   23,400         35,100.00             0.00        35,100.00
+  u_trng_health               16,200         24,300.00        24,000.00        48,300.00
+--------------------------------------------------------------------------------
+Total Equivalent NAND2 Gates: 76,000
+Total Dynamic Power:          18.2 mW @ 250 MHz, 0.9V
+Total Leakage Power:          0.44 mW
+Target Die Dimensions:        1400 um x 1400 um (with Padring & Guardring)
+================================================================================
