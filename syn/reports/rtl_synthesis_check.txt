@@ -1,0 +1,24 @@
+================================================================================
+RTL SYNTHESIS READINESS & CONSTRAINT REPORT: quantum-qkd-random-engine
+Method : Static Verilog/SV Structural Parser + SDC Constraint Audit
+Note   : Foundry Gate-Level Netlist & STA require PDK Liberty (.lib) + Synopsys/OpenROAD
+================================================================================
+RTL Source Files Inspected : 6
+Code Lines (Non-Comment)   : 501
+Sequential Blocks          : 6
+Combinational Blocks       : 1
+Declared reg/logic Signals : 46
+
+MODULE BREAKDOWN:
+  rtl\bus\qkd_regs_apb.v                        | modules=qkd_regs_apb                 | loc=  69 | seq= 1 | comb= 0
+  rtl\privacy\toeplitz_privacy_amplification.v  | modules=toeplitz_privacy_amplification | loc=  59 | seq= 1 | comb= 0
+  rtl\quantum_qkd_top.v                         | modules=quantum_qkd_top              | loc= 146 | seq= 1 | comb= 0
+  rtl\reconciliation\cascade_error_reconciler.v | modules=cascade_error_reconciler     | loc=  92 | seq= 1 | comb= 1
+  rtl\sifting\qkd_bb84_sifting_engine.v         | modules=qkd_bb84_sifting_engine      | loc=  68 | seq= 1 | comb= 0
+  rtl\trng\nist_sp800_90b_health_test.v         | modules=nist_sp800_90b_health_test   | loc=  67 | seq= 1 | comb= 0
+
+SDC CLOCK CONSTRAINTS:
+  qkd_timing.sdc: port=clk | period=4.00 ns | target=250.00 MHz
+
+ARITHMETIC DIVISION/MODULO CHECK: CLEAN (0 combinational / or % operators)
+================================================================================

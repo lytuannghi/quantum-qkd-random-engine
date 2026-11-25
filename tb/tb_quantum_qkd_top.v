@@ -7,7 +7,7 @@
 //              - APB3 Register Bus Access & Configuration
 //              - BB84 Basis Matching & 50% Yield Sifting
 //              - Real-time QBER Evaluation & Security Abort on Eavesdropping
-//              - Modified Cascade Information Reconciliation & Bit Error Correction
+//              - Binary-Bisection Cascade Error Reconciliation (bit-index 47)
 //              - Toeplitz Universal Hashing Matrix Multiplication
 //              - Privacy Amplification (64-bit to 32-bit key condensation)
 //              - NIST SP 800-90B Online Continuous Health Tests (RCT & APT)
@@ -34,6 +34,7 @@ module tb_quantum_qkd_top;
 
     // Classical Public Channel Data
     reg         alice_block_parity;
+    reg  [63:0] alice_ref_block;
 
     // APB3 Interface
     reg  [7:0]  paddr;
@@ -64,6 +65,7 @@ module tb_quantum_qkd_top;
         .trng_sample_valid (trng_sample_valid),
         .trng_sample       (trng_sample),
         .alice_block_parity(alice_block_parity),
+        .alice_ref_block   (alice_ref_block),
         .paddr             (paddr),
         .psel              (psel),
         .penable           (penable),
@@ -117,6 +119,7 @@ module tb_quantum_qkd_top;
     endtask
 
     reg [31:0] read_val;
+    reg [31:0] key_status;
 
     // Sticky capture flags
     reg saw_key_irq;
@@ -134,6 +137,9 @@ module tb_quantum_qkd_top;
         end
     end
 
+    localparam [63:0] ALICE_KEY_BLOCK = 64'hFEDCBA9876543210;
+    localparam [63:0] BOB_KEY_BLOCK   = 64'hFEDCBA9876543210 ^ (64'd1 << 47);
+
     initial begin
         $dumpfile("sim/waves/tb_quantum_qkd_top.vcd");
         $dumpvars(0, tb_quantum_qkd_top);
@@ -148,6 +154,7 @@ module tb_quantum_qkd_top;
         trng_sample_valid  = 0;
         trng_sample        = 4'd0;
         alice_block_parity = 0;
+        alice_ref_block    = 64'd0;
         paddr              = 8'd0;
         psel               = 0;
         penable            = 0;
@@ -166,7 +173,7 @@ module tb_quantum_qkd_top;
         #10;
 
         apb_read(8'h00, read_val);
-        if (read_val == 32'd0) begin
+        if (read_val == 32'd0 && !alarm_eve_detected && !alarm_trng_fault && !irq_key_ready) begin
             $display("[PASS] Test 1: Power-on Reset verified, APB register bus idle and clean.");
             tests_passed = tests_passed + 1;
         end else begin
@@ -175,40 +182,38 @@ module tb_quantum_qkd_top;
         end
 
         // -------------------------------------------------------------
-        // Test 2: BB84 Basis Sifting Matching Verification (Rectilinear vs Diagonal)
+        // Test 2: BB84 Basis Sifting Matching Verification
         // -------------------------------------------------------------
         apb_write(8'h00, 32'h00000001); // Enable Sifting
         @(posedge clk); #0.2;
 
-        // Send 1 matched basis event (Alice 0, Bob 0)
         raw_event_valid = 1; alice_basis = 0; alice_bit = 1; bob_basis = 0; bob_bit = 1;
         @(posedge clk); #0.2;
-        // Send 1 mismatched basis event (Alice 0, Bob 1) -> must be discarded
         raw_event_valid = 1; alice_basis = 0; alice_bit = 1; bob_basis = 1; bob_bit = 0;
         @(posedge clk); #0.2;
         raw_event_valid = 0;
         repeat(3) @(posedge clk);
 
-        if (u_dut.total_raw_events == 16'd2 && u_dut.total_sifted_bits == 16'd1) begin
+        apb_read(8'h0C, read_val);
+        if (read_val[31:16] == 16'd2 && read_val[15:0] == 16'd1) begin
             $display("[PASS] Test 2: BB84 Sifting correctly accepted matched basis and discarded mismatched basis.");
             tests_passed = tests_passed + 1;
         end else begin
             $display("[FAIL] Test 2: Basis sifting logic error (raw=%d, sifted=%d).",
-                u_dut.total_raw_events, u_dut.total_sifted_bits);
+                read_val[31:16], read_val[15:0]);
             tests_failed = tests_failed + 1;
         end
 
         // -------------------------------------------------------------
-        // Test 3: Raw Key Detection & Sifted Key Output Rate (50% theoretical yield)
+        // Test 3: Raw Key Detection & Sifted Key Output Rate (50% yield)
         // -------------------------------------------------------------
-        // Stream 40 random events with equal probability of matching basis
         begin: sifting_rate_loop
             integer e;
             for (e = 0; e < 40; e = e + 1) begin
                 raw_event_valid = 1;
-                alice_basis = e[0];     // Alternating bases
+                alice_basis = e[0];
                 alice_bit   = e[1];
-                bob_basis   = (e % 4 < 2) ? e[0] : ~e[0]; // Exactly 50% match
+                bob_basis   = (e[1] == 1'b0) ? e[0] : ~e[0]; // 50% basis match
                 bob_bit     = alice_bit;
                 @(posedge clk); #0.2;
             end
@@ -216,19 +221,19 @@ module tb_quantum_qkd_top;
         raw_event_valid = 0;
         repeat(5) @(posedge clk);
 
-        if (u_dut.total_sifted_bits >= 16'd15 && u_dut.total_sifted_bits <= 16'd25) begin
-            $display("[PASS] Test 3: Sifted Key Yield conforms to theoretical 50%% BB84 basis match rate (%0d bits).",
-                u_dut.total_sifted_bits);
+        apb_read(8'h0C, read_val);
+        if (read_val[15:0] == 16'd21) begin
+            $display("[PASS] Test 3: Sifted Key Yield conforms to 50%% BB84 match rate (%0d cumulative bits).",
+                read_val[15:0]);
             tests_passed = tests_passed + 1;
         end else begin
-            $display("[FAIL] Test 3: Sifting rate out of bounds (%d bits).", u_dut.total_sifted_bits);
+            $display("[FAIL] Test 3: Sifting rate mismatch (%d bits).", read_val[15:0]);
             tests_failed = tests_failed + 1;
         end
 
         // -------------------------------------------------------------
         // Test 4: Quantum Bit Error Rate (QBER) Calculation
         // -------------------------------------------------------------
-        // Send 10 matched events with 1 intentional bit flip error (10% QBER)
         begin: qber_loop
             integer e;
             for (e = 0; e < 10; e = e + 1) begin
@@ -243,19 +248,19 @@ module tb_quantum_qkd_top;
         raw_event_valid = 0;
         repeat(5) @(posedge clk);
 
-        if (u_dut.error_bits_count >= 16'd1) begin
-            $display("[PASS] Test 4: Real-time QBER tracking registered channel errors (Errors = %0d).",
-                u_dut.error_bits_count);
+        apb_read(8'h08, read_val);
+        if (u_dut.error_bits_count == 16'd1 && read_val[15:8] > 8'd0) begin
+            $display("[PASS] Test 4: Real-time QBER engine computed QBER=%0d%% (Errors=1).", read_val[15:8]);
             tests_passed = tests_passed + 1;
         end else begin
-            $display("[FAIL] Test 4: QBER error count failed to increment.");
+            $display("[FAIL] Test 4: QBER calculation failed (err=%d qber=%d).",
+                u_dut.error_bits_count, read_val[15:8]);
             tests_failed = tests_failed + 1;
         end
 
         // -------------------------------------------------------------
-        // Test 5: QBER Threshold Exceeded Security Abort (Eve eavesdropping detection)
+        // Test 5: QBER Threshold Exceeded Security Abort (Eve detection)
         // -------------------------------------------------------------
-        // Flood channel with 20 errors to push QBER well above the 11% threshold
         saw_eve_alarm = 0;
         begin: eve_flood_loop
             integer e;
@@ -264,14 +269,14 @@ module tb_quantum_qkd_top;
                 alice_basis = 0;
                 bob_basis   = 0;
                 alice_bit   = 1;
-                bob_bit     = 0; // 100% error -> Eve intercept-resend
+                bob_bit     = 0;
                 @(posedge clk); #0.2;
             end
         end
         raw_event_valid = 0;
         repeat(5) @(posedge clk);
 
-        if (saw_eve_alarm || alarm_eve_detected || u_dut.qber_alarm_abort) begin
+        if (saw_eve_alarm && alarm_eve_detected) begin
             $display("[PASS] Test 5: QBER security threshold exceeded (>11%%). Eve eavesdropping alarm triggered abort!");
             tests_passed = tests_passed + 1;
         end else begin
@@ -280,29 +285,53 @@ module tb_quantum_qkd_top;
         end
 
         // -------------------------------------------------------------
-        // Test 6: Cascade Interactive Error Reconciliation & Bit-Flip Correction
+        // Test 6: Binary-Bisection Cascade Reconciliation via Sifted Stream
         // -------------------------------------------------------------
-        // Load block into reconciler with parity mismatch
-        u_dut.u_reconciler.key_block_corrected = 64'hFEDCBA9876543210;
-        alice_block_parity = ~ (^64'hFEDCBA9876543210); // Opposite parity
-        apb_write(8'h00, 32'h00000003); // Reconcile Start
-        repeat(10) @(posedge clk);
+        // Reset cleanly so sifted_key_buf aligns cleanly at bit 0
+        rst_n = 0;
+        #10;
+        rst_n = 1;
+        #10;
+        saw_key_irq   = 0;
+        saw_hash_done = 0;
+
+        apb_write(8'h00, 32'h00000001); // Enable Sifting
+        alice_ref_block    = ALICE_KEY_BLOCK;
+        alice_block_parity = ^ALICE_KEY_BLOCK;
+
+        // Stream 64 real sifted photon events (bit 47 corrupted on Bob side)
+        begin: stream_block_loop
+            integer idx;
+            for (idx = 63; idx >= 0; idx = idx - 1) begin
+                raw_event_valid = 1;
+                alice_basis     = idx[0];
+                bob_basis       = idx[0];
+                alice_bit       = ALICE_KEY_BLOCK[idx];
+                bob_bit         = BOB_KEY_BLOCK[idx];
+                @(posedge clk); #0.2;
+            end
+        end
+        raw_event_valid = 0;
+        repeat(15) @(posedge clk);
 
         if (u_dut.u_reconciler.error_corrected_flag &&
-            u_dut.u_reconciler.error_bit_index == 6'd3) begin
-            $display("[PASS] Test 6: Modified Cascade Engine resolved parity mismatch and corrected bit-flip at index 3.");
+            u_dut.u_reconciler.error_bit_index == 6'd47 &&
+            u_dut.u_reconciler.key_block_corrected == ALICE_KEY_BLOCK) begin
+            $display("[PASS] Test 6: Binary-Bisection Cascade isolated and corrected bit-flip at index %0d.",
+                u_dut.u_reconciler.error_bit_index);
             tests_passed = tests_passed + 1;
         end else begin
-            $display("[FAIL] Test 6: Cascade error reconciliation failed.");
+            $display("[FAIL] Test 6: Cascade error reconciliation failed (flag=%b idx=%0d block=%016h).",
+                u_dut.u_reconciler.error_corrected_flag,
+                u_dut.u_reconciler.error_bit_index,
+                u_dut.u_reconciler.key_block_corrected);
             tests_failed = tests_failed + 1;
         end
 
         // -------------------------------------------------------------
         // Test 7: Toeplitz Matrix Universal Hash Generation
         // -------------------------------------------------------------
-        // Trigger privacy amplification hash
-        apb_write(8'h00, 32'h00000005); // Hash Start
-        repeat(40) @(posedge clk);
+        repeat(70) @(posedge clk);
 
         if (u_dut.u_privacy.final_secret_key != 32'd0) begin
             $display("[PASS] Test 7: Toeplitz Universal Hash matrix multiplication generated final key: 0x%08h",
@@ -316,31 +345,33 @@ module tb_quantum_qkd_top;
         // -------------------------------------------------------------
         // Test 8: Privacy Amplification Key Compression (64 -> 32 bits)
         // -------------------------------------------------------------
-        if (saw_hash_done || saw_key_irq) begin
-            $display("[PASS] Test 8: Privacy Amplification compressed 64-bit reconciled block to 32-bit secret key.");
+        apb_read(8'h04, key_status);
+        if (saw_hash_done && saw_key_irq && irq_key_ready) begin
+            $display("[PASS] Test 8: Privacy Amplification compressed 64-bit block to 32-bit key and raised IRQ.");
             tests_passed = tests_passed + 1;
         end else begin
-            $display("[FAIL] Test 8: Privacy amplification completion flag missing.");
+            $display("[FAIL] Test 8: Privacy amplification completion missing (done=%b irq=%b).",
+                saw_hash_done, saw_key_irq);
             tests_failed = tests_failed + 1;
         end
 
         // -------------------------------------------------------------
-        // Test 9: NIST SP 800-90B Health Tests: Repetition Count Test & APT
+        // Test 9: NIST SP 800-90B Health Tests: RCT & APT
         // -------------------------------------------------------------
-        // Feed 100 varying quantum entropy samples (clean)
         begin: trng_clean_loop
             integer s;
             for (s = 0; s < 100; s = s + 1) begin
                 trng_sample_valid = 1;
-                trng_sample = s % 16;
+                trng_sample = s[3:0];
                 @(posedge clk); #0.2;
             end
         end
         trng_sample_valid = 0;
         repeat(5) @(posedge clk);
 
-        if (u_dut.u_trng_health.health_test_pass && !alarm_trng_fault) begin
-            $display("[PASS] Test 9: NIST SP 800-90B Continuous Health Tests (RCT & APT) verified entropy stream healthy.");
+        apb_read(8'h04, key_status);
+        if (key_status[3] == 1'b1 && !alarm_trng_fault) begin
+            $display("[PASS] Test 9: NIST SP 800-90B Continuous Health Tests (RCT & APT) verified entropy healthy.");
             tests_passed = tests_passed + 1;
         end else begin
             $display("[FAIL] Test 9: False TRNG health test alarm.");
@@ -348,14 +379,15 @@ module tb_quantum_qkd_top;
         end
 
         // -------------------------------------------------------------
-        // Test 10: Final Secure Quantum Secret Key Ready Interrupt & APB Readout
+        // Test 10: Final Secure Quantum Secret Key APB Readout & IRQ Clear
         // -------------------------------------------------------------
-        apb_read(8'h10, read_val); // Read secret key register
-        if (read_val != 32'd0) begin
-            $display("[PASS] Test 10: Secure Secret Key successfully extracted over APB3: 0x%08h.", read_val);
+        apb_read(8'h10, read_val);
+        @(posedge clk); #0.2;
+        if (read_val != 32'd0 && !irq_key_ready) begin
+            $display("[PASS] Test 10: Secure Secret Key extracted over APB3 (0x%08h) and IRQ cleared.", read_val);
             tests_passed = tests_passed + 1;
         end else begin
-            $display("[FAIL] Test 10: Secret key readback is zero.");
+            $display("[FAIL] Test 10: Secret key APB readout failed (key=%08h irq=%b).", read_val, irq_key_ready);
             tests_failed = tests_failed + 1;
         end
 

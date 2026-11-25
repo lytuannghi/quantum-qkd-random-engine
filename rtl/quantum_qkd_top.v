@@ -29,6 +29,7 @@ module quantum_qkd_top (
 
     // Classical Public Channel Data for Reconciliation
     input  wire                 alice_block_parity,
+    input  wire [63:0]          alice_ref_block,
 
     // AMBA 3 APB Slave Interface
     input  wire [7:0]           paddr,
@@ -124,6 +125,7 @@ module quantum_qkd_top (
         .reconcile_start     (block_ready_for_reconcile || reg_reconcile_start),
         .key_block_in        (sifted_key_buf),
         .alice_block_parity  (alice_block_parity),
+        .alice_ref_block     (alice_ref_block),
         .reconcile_done      (reconcile_done),
         .key_block_corrected (key_block_corrected),
         .error_bit_index     (error_bit_index),

@@ -44,7 +44,7 @@ module toeplitz_privacy_amplification #(
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state            <= ST_IDLE;
-            seed_reg         <= 95'h1A2B3C4D5E6F708192A3B4C5D; // Default non-zero seed
+            seed_reg         <= 95'h2A2B3C4D5E6F708192A3B4C5; // Default non-zero 95-bit seed
             row_idx          <= 6'd0;
             key_accum        <= 32'd0;
             final_secret_key <= 32'd0;

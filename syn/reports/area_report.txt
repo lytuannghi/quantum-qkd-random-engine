@@ -1,22 +1,29 @@
 ================================================================================
-Design:            quantum_qkd_top
-Process:           TSMC 28nm HPC+ Logic Standard Cells
-Synthesis Tool:    Synopsys Design Compiler Ultra vT-2022.03-SP5
+RTL STRUCTURAL & SYNTHESIS READINESS SUMMARY: quantum_qkd_top
+Target Library Constraints: SkyWater 130nm HD Standard Cells (SDC)
 ================================================================================
 
-Hierarchical Area Breakdown:
---------------------------------------------------------------------------------
-Module Instance           Gate Count    Cell Area (um2)  SRAM Area (um2) Total Area (um2)
---------------------------------------------------------------------------------
-quantum_qkd_top               76,000        114,000.00        24,000.00       138,000.00
-  u_regs                       5,400          8,100.00             0.00         8,100.00
-  u_sifting                   16,200         24,300.00             0.00        24,300.00
-  u_reconciler                14,800         22,200.00             0.00        22,200.00
-  u_privacy                   23,400         35,100.00             0.00        35,100.00
-  u_trng_health               16,200         24,300.00        24,000.00        48,300.00
---------------------------------------------------------------------------------
-Total Equivalent NAND2 Gates: 76,000
-Total Dynamic Power:          18.2 mW @ 250 MHz, 0.9V
-Total Leakage Power:          0.44 mW
-Target Die Dimensions:        1400 um x 1400 um (with Padring & Guardring)
+================================================================================
+RTL SYNTHESIS READINESS & CONSTRAINT REPORT: quantum-qkd-random-engine
+Method : Static Verilog/SV Structural Parser + SDC Constraint Audit
+Note   : Foundry Gate-Level Netlist & STA require PDK Liberty (.lib) + Synopsys/OpenROAD
+================================================================================
+RTL Source Files Inspected : 6
+Code Lines (Non-Comment)   : 501
+Sequential Blocks          : 6
+Combinational Blocks       : 1
+Declared reg/logic Signals : 46
+
+MODULE BREAKDOWN:
+  rtl\bus\qkd_regs_apb.v                        | modules=qkd_regs_apb                 | loc=  69 | seq= 1 | comb= 0
+  rtl\privacy\toeplitz_privacy_amplification.v  | modules=toeplitz_privacy_amplification | loc=  59 | seq= 1 | comb= 0
+  rtl\quantum_qkd_top.v                         | modules=quantum_qkd_top              | loc= 146 | seq= 1 | comb= 0
+  rtl\reconciliation\cascade_error_reconciler.v | modules=cascade_error_reconciler     | loc=  92 | seq= 1 | comb= 1
+  rtl\sifting\qkd_bb84_sifting_engine.v         | modules=qkd_bb84_sifting_engine      | loc=  68 | seq= 1 | comb= 0
+  rtl\trng\nist_sp800_90b_health_test.v         | modules=nist_sp800_90b_health_test   | loc=  67 | seq= 1 | comb= 0
+
+SDC CLOCK CONSTRAINTS:
+  qkd_timing.sdc: port=clk | period=4.00 ns | target=250.00 MHz
+
+ARITHMETIC DIVISION/MODULO CHECK: CLEAN (0 combinational / or % operators)
 ================================================================================

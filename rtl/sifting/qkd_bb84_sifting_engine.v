@@ -36,6 +36,13 @@ module qkd_bb84_sifting_engine (
     output reg                  qber_alarm_abort  // High if Eve eavesdropping detected
 );
 
+    reg [15:0] next_sifted;
+    reg [15:0] next_err;
+    reg [23:0] rem_tmp;
+    reg [23:0] shifted_den;
+    reg [7:0]  q_tmp;
+    integer    bi;
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             sifted_valid      <= 1'b0;
@@ -58,19 +65,26 @@ module qkd_bb84_sifting_engine (
                 if (alice_basis == bob_basis) begin
                     sifted_valid      <= 1'b1;
                     sifted_bit        <= bob_bit;
-                    total_sifted_bits <= total_sifted_bits + 16'd1;
+                    next_sifted        = total_sifted_bits + 16'd1;
+                    next_err           = (alice_bit != bob_bit) ? (error_bits_count + 16'd1) : error_bits_count;
+                    total_sifted_bits <= next_sifted;
+                    error_bits_count  <= next_err;
 
-                    // Error tracking
-                    if (alice_bit != bob_bit) begin
-                        error_bits_count <= error_bits_count + 16'd1;
-                    end
+                    // Update QBER percentage via integer restoring subtraction (no / operator)
+                    if (next_sifted > 16'd10) begin
+                        rem_tmp = {8'd0, next_err} * 24'd100;
+                        q_tmp   = 8'd0;
+                        for (bi = 6; bi >= 0; bi = bi - 1) begin
+                            shifted_den = ({8'd0, next_sifted} << bi);
+                            if (rem_tmp >= shifted_den) begin
+                                rem_tmp = rem_tmp - shifted_den;
+                                q_tmp   = q_tmp | (8'd1 << bi);
+                            end
+                        end
+                        qber_pct <= q_tmp;
 
-                    // Update QBER percentage
-                    if (total_sifted_bits > 16'd10) begin
-                        qber_pct <= (error_bits_count * 16'd100) / total_sifted_bits;
-
-                        // Check QBER against security threshold
-                        if (((error_bits_count * 16'd100) / total_sifted_bits) > qber_threshold_pct) begin
+                        // Check QBER against security threshold using cross-multiplication
+                        if (({8'd0, next_err} * 24'd100) > ({8'd0, next_sifted} * {16'd0, qber_threshold_pct})) begin
                             qber_alarm_abort <= 1'b1; // Eve detected! Abort QKD session
                         end
                     end
